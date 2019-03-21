@@ -87,7 +87,7 @@ int main()
                 /* Place error handling code here */
                 break;
         }
-
+        /*
         while(echo_Read()==0){
             trigger_out_Write(1);
             CyDelay(10u);
@@ -97,10 +97,9 @@ int main()
         while(echo_Read()==1){};
         value_counter= 65535-Timer_2_ReadCounter();
         distancia=value_counter/58;
-
+        */
 
         /* Check to see if an ADC conversion has completed */
-        
         if(ADC_DelSig_1_IsEndConversion(ADC_DelSig_1_RETURN_STATUS))
         {
             if(ContinuouslySendData)
@@ -108,6 +107,9 @@ int main()
                 Output = ADC_DelSig_1_CountsTo_mVolts(ADC_DelSig_1_GetResult16());
                 sprintf(TransmitBuffer, "%lu,%u,%.2f,%lu\r\n", InterruptCnt,entrada,distancia,Output);
                 UART_1_PutString(TransmitBuffer);
+
+                PWM_1_Start();
+                /*
                 if((InterruptCnt==48)||(InterruptCnt==49)||(InterruptCnt==50)||(InterruptCnt==51)){
                     PWM_1_Start();
                     entrada=5;
@@ -116,6 +118,7 @@ int main()
                     PWM_1_Stop();
                     entrada=0;
                 }
+                */
             }
             else{
                 InterruptCnt=0;
