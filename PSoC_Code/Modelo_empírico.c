@@ -2,6 +2,7 @@
 #include "project.h"
 #include "stdio.h"
 #include "stdlib.h"
+#include "PWM_1.h"
 
 /* Project Defines */
 #define FALSE  0
@@ -33,11 +34,14 @@ int main()
     uint32 Output;
     /* Variable to store UART received character */
     uint8 Ch;
+    uint8 sel;
+    uint8 compare=189;
     uint32 value_counter=0;
     float distancia=0.0;
     uint8 entrada=0;
     /* Flags used to store transmit data commands */
     uint8 ContinuouslySendData;
+    uint8 settingup;
     /* Transmit Buffer */
     char TransmitBuffer[TRANSMIT_BUFFER_SIZE];
 
@@ -52,6 +56,7 @@ int main()
     Timer_2_Start();
 
     /* Initialize Variables */
+    settingup = FALSE;
     ContinuouslySendData = FALSE;
 
     /* Start the ADC conversion */
@@ -71,15 +76,22 @@ int main()
             case 0:
                 /* No new data was recieved */
                 break;
+            case 'A':
+            case 'a':
+                settingup = TRUE;
+                sprintf(TransmitBuffer, "Setting up \r\n");
+                UART_1_PutString(TransmitBuffer);
+                break;
             case 'S':
             case 's':
                 ContinuouslySendData = TRUE;
                 sprintf(TransmitBuffer, "Inicio de la medicion \r\n");
                 UART_1_PutString(TransmitBuffer);
                 break;
-            case 'X':
-            case 'x':
+            case 'D':
+            case 'd':
                 ContinuouslySendData = FALSE;
+                settingup = FALSE;
                 sprintf(TransmitBuffer, "Fin de la medicion \r\n\n\n");
                 UART_1_PutString(TransmitBuffer);
                 break;
@@ -87,7 +99,7 @@ int main()
                 /* Place error handling code here */
                 break;
         }
-        /*
+
         while(echo_Read()==0){
             trigger_out_Write(1);
             CyDelay(10u);
@@ -97,32 +109,58 @@ int main()
         while(echo_Read()==1){};
         value_counter= 65535-Timer_2_ReadCounter();
         distancia=value_counter/58;
-        */
 
-        /* Check to see if an ADC conversion has completed */
-        if(ADC_DelSig_1_IsEndConversion(ADC_DelSig_1_RETURN_STATUS))
+
+        if(ContinuouslySendData&&settingup)
         {
-            if(ContinuouslySendData)
-            {
-                Output = ADC_DelSig_1_CountsTo_mVolts(ADC_DelSig_1_GetResult16());
-                sprintf(TransmitBuffer, "%lu,%u,%.2f,%lu\r\n", InterruptCnt,entrada,distancia,Output);
-                UART_1_PutString(TransmitBuffer);
+            sprintf(TransmitBuffer, "%lu,%u,%.2f\r\n", InterruptCnt,entrada,distancia);
+            UART_1_PutString(TransmitBuffer);
+            PWM_1_Start();
 
-                PWM_1_Start();
-                /*
-                if((InterruptCnt==48)||(InterruptCnt==49)||(InterruptCnt==50)||(InterruptCnt==51)){
-                    PWM_1_Start();
-                    entrada=5;
-                }
-                else if((InterruptCnt==98)||(InterruptCnt==99)||(InterruptCnt==100)||(InterruptCnt==101)){
-                    PWM_1_Stop();
-                    entrada=0;
-                }
-                */
+            if((InterruptCnt==48)||(InterruptCnt==49)||(InterruptCnt==50)||(InterruptCnt==51)){
+                compare-=1;
+                PWM_1_WriteCompare(compare);
+                entrada=1;
             }
-            else{
-                InterruptCnt=0;
+            else if(distancia>95){
+                ContinuouslySendData = FALSE;
+                settingup=FALSE;
+                PWM_1_Stop();
+            }
+
+        }
+        else if(settingup)
+        {
+            sel = UART_1_GetChar();
+            if(sel=='z'){
+                PWM_1_Stop();
+                entrada=0;
+                compare+=1;
+                PWM_1_WriteCompare(compare);
+                sprintf(TransmitBuffer, "%u\r\n",PWM_1_ReadCompare());
+                UART_1_PutString(TransmitBuffer);
+            }
+            else if(sel=='x'){
+                PWM_1_Stop();
+                entrada=0;
+                compare-=1;
+                PWM_1_WriteCompare(compare);
+                sprintf(TransmitBuffer, "%u\r\n",PWM_1_ReadCompare());
+                UART_1_PutString(TransmitBuffer);
+            }
+            else if(sel=='c'){
+                PWM_1_Start();
+                entrada=0;
+                sprintf(TransmitBuffer, "%lu,%u,%.2f\r\n", InterruptCnt,entrada,distancia);
+                UART_1_PutString(TransmitBuffer);
+            }
+            else if(sel=='v'){
+                settingup=FALSE;
             }
         }
+        else{
+            InterruptCnt=0;
+        }
+
     }
 }
