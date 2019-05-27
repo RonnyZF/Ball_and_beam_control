@@ -10,21 +10,21 @@
 #define TRUE   1
 #define TRANSMIT_BUFFER_SIZE  16
 #define TS 0.02 //Tiempo de muestreo
-#define CMP_MAX 130//200
-#define CMP_MIN 90//50
+#define CMP_MAX 235
+#define CMP_MIN 65
 
 /*Variables*/
 uint32 InterruptCnt;
 float reference=47;
 //Control constants
-float KP=0.6329;
-float KD=2.3184;
-float N=1.1888;//3.33;//9;
+float KP=0.0079767;
+float KD=0.020035;
+float N=1.9;
 /*Auxiliar variables for control actions*/
 float NTS;
 float DN;
 /*Control variables*/
-volatile float compare=110.0;// dato
+uint16 compare=140;// dato
 volatile float ek=0;// error
 volatile float ek_1=0;// error pasado
 volatile float pk=0;// accion proporcional
@@ -36,14 +36,14 @@ volatile float PD =0;// accion total
 ********************************************************************************/
 CY_ISR(InterruptHandler)
 {
-	/* Read Status register in order to clear the sticky Terminal Count (TC) bit
-	 * in the status register. Note that the function is not called, but rather
-	 * the status is read directly.
-	 */
-   	Timer_1_STATUS;
-	/* Increment the Counter to indicate the keep track of the number of
+    /* Read Status register in order to clear the sticky Terminal Count (TC) bit 
+     * in the status register. Note that the function is not called, but rather 
+     * the status is read directly.
+     */
+    Timer_1_STATUS;    
+    /* Increment the Counter to indicate the keep track of the number of 
      * interrupts received */
-    InterruptCnt++;
+    InterruptCnt++;    
 }
 /*Control function*/
 void Control(float distancia){
@@ -51,16 +51,16 @@ void Control(float distancia){
     pk=KP*ek;// accion proporcional
     dk=(KD*N*(ek-ek_1)+dk)/(1+N*TS);/// accion derivativo
     PD=pk+dk;// respuesta de control
-    compare=PD+110;
     ek_1=ek;
-
-    if (compare > CMP_MAX) {
+    compare= (54.09*PD)+140;
+    
+    if (compare > CMP_MAX) { 
         compare = CMP_MAX;
         }
-    if (compare < CMP_MIN) {
+    if (compare < CMP_MIN) { 
         compare = CMP_MIN;}
-
-     PWM_1_WriteCompare(compare);
+   
+     PWM_1_WriteCompare(compare);    
 }
 void menu(){
         UART_1_PutString("\n");
@@ -94,17 +94,17 @@ int main(void){
     UART_1_Start();
     Timer_1_Start();
     Timer_2_Start();
-
+    
     /* Send message to verify COM port is connected properly */
     UART_1_PutString("COM Port Open Control Action Starts \r\n");
     menu();
 
-
+    
     for(;;)
-    {
+    {        
         /* Non-blocking call to get the latest data recieved  */
         Ch = UART_1_GetChar();
-        tiempo=InterruptCnt/100;
+        tiempo=InterruptCnt/50;
         /* Set flags based on UART command */
         switch(Ch)
         {
@@ -119,7 +119,7 @@ int main(void){
                 set_ref = TRUE;
                 sprintf(TransmitBuffer, "Setting CMP \r\n");
                 UART_1_PutString(TransmitBuffer);
-                break;
+                break;    
             case 's':
                 StartControlling = TRUE;
                 sprintf(TransmitBuffer, "Inicio de Accion de Control \r\n");
@@ -137,7 +137,7 @@ int main(void){
                 StartControlling = FALSE;
                 set_cmp = FALSE;
                 set_ref = FALSE;
-                break;
+                break;    
         }
         /*Sensor sampling*/
         while(echo_Read()==0){
@@ -149,14 +149,15 @@ int main(void){
         while(echo_Read()==1){};
         value_counter= 65535-Timer_2_ReadCounter();
         distancia=value_counter/58;
-
+        
 
         if(StartControlling){
-            sprintf(TransmitBuffer, "t=%.2f,dist=%.2f,e= %.2f,pk=%.2f,dk=%.2f,PD=%.2f,CMP=%.2f\r\n",tiempo,distancia,ek,pk,dk,PD,compare);
+            //sprintf(TransmitBuffer, "t=%.2f,dist=%.2f,e= %.2f,pk=%.2f,dk=%.2f,PD=%.2f,CMP=%u\r\n",tiempo,distancia,ek,pk,dk,PD,compare);
+            sprintf(TransmitBuffer, "%lu,%.2f,%.2f\r\n",InterruptCnt,distancia,ek);
             UART_1_PutString(TransmitBuffer);
             PWM_1_Start();
             Control(distancia);
-
+            
         }
         else if(set_cmp){
             sel = UART_1_GetChar();
@@ -213,3 +214,4 @@ int main(void){
         }
     }
 }
+
